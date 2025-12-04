@@ -317,3 +317,70 @@ class HeatmapService:
                 rank_matrix[year_str][month_str] = None
         
         return rank_matrix
+    
+    def calculate_forward_returns(self, index_name: str, forward_period: str) -> Dict[str, Dict[str, Optional[float]]]:
+        """
+        Calculate forward returns for each month.
+        Forward return = return from current month to N months/years in the future.
+        
+        Args:
+            index_name: Name of the index
+            forward_period: One of '1M', '3M', '6M', '1Y', '2Y', '3Y', '4Y'
+            
+        Returns:
+            Dictionary with year -> month -> forward return value
+        """
+        if index_name not in self.data.columns:
+            raise ValueError(f"Index '{index_name}' not found in data")
+        
+        # Map forward period to number of months
+        period_map = {
+            '1M': 1,
+            '3M': 3,
+            '6M': 6,
+            '1Y': 12,
+            '2Y': 24,
+            '3Y': 36,
+            '4Y': 48
+        }
+        
+        if forward_period not in period_map:
+            raise ValueError(f"Invalid forward period: {forward_period}")
+        
+        months_forward = period_map[forward_period]
+        
+        # Calculate monthly averages
+        monthly_avg = self.calculate_monthly_average(index_name)
+        
+        # Calculate forward returns
+        forward_returns: Dict[str, Dict[str, Optional[float]]] = {}
+        
+        # Convert monthly_avg to list for easier indexing
+        monthly_list = list(monthly_avg.items())
+        
+        for i, (idx, current_value) in enumerate(monthly_list):
+            year = idx[0]
+            month = idx[1]
+            year_str = str(year)
+            month_str = str(month)
+            
+            # Initialize year if not exists
+            if year_str not in forward_returns:
+                forward_returns[year_str] = {}
+            
+            # Check if we have data for the future period
+            future_idx = i + months_forward
+            if future_idx < len(monthly_list):
+                future_value = monthly_list[future_idx][1]
+                
+                # Calculate forward return: (future_value / current_value) - 1
+                if not pd.isna(current_value) and not pd.isna(future_value) and current_value != 0:
+                    forward_return = (future_value / current_value) - 1
+                    forward_returns[year_str][month_str] = round(float(forward_return), 4)
+                else:
+                    forward_returns[year_str][month_str] = None
+            else:
+                # No future data available
+                forward_returns[year_str][month_str] = None
+        
+        return forward_returns

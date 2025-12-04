@@ -2,7 +2,7 @@
  * Dashboard Page - Main page that combines index selection and heatmap display.
  */
 import React, { useState, useEffect } from 'react';
-import { Container, Box, Typography, Paper } from '@mui/material';
+import { Container, Box, Typography, Paper, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 import IndexSelector from '../components/IndexSelector';
 import Heatmap from '../components/Heatmap';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -13,6 +13,7 @@ const Dashboard = () => {
   // State management
   const [indices, setIndices] = useState([]);
   const [selectedIndex, setSelectedIndex] = useState('');
+  const [forwardPeriod, setForwardPeriod] = useState(null); // null means current/MoM returns
   const [heatmapData, setHeatmapData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -55,13 +56,36 @@ const Dashboard = () => {
     setError(null);
 
     try {
-      const data = await fetchHeatmap(indexName);
+      const data = await fetchHeatmap(indexName, forwardPeriod);
       setHeatmapData(data);
       setLoading(false);
     } catch (err) {
       setError(err.message);
       setHeatmapData(null);
       setLoading(false);
+    }
+  };
+
+  /**
+   * Handle forward period selection.
+   */
+  const handleForwardPeriodChange = async (period) => {
+    setForwardPeriod(period);
+    
+    // Reload data with new period if an index is selected
+    if (selectedIndex) {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        const data = await fetchHeatmap(selectedIndex, period);
+        setHeatmapData(data);
+        setLoading(false);
+      } catch (err) {
+        setError(err.message);
+        setHeatmapData(null);
+        setLoading(false);
+      }
     }
   };
 
@@ -102,7 +126,7 @@ const Dashboard = () => {
             Financial Heatmap Dashboard
           </Typography>
           <Typography variant="h6" fontWeight="400" sx={{ opacity: 0.95 }}>
-            Month-over-Month Returns Analysis
+            {forwardPeriod ? `Forward Returns Analysis (${forwardPeriod})` : 'Month-over-Month Returns Analysis'}
           </Typography>
         </Paper>
 
@@ -124,12 +148,36 @@ const Dashboard = () => {
             <ErrorMessage message={error} onRetry={handleRetry} />
           ) : (
             <>
-              <IndexSelector
-                indices={indices}
-                selectedIndex={selectedIndex}
-                onSelectIndex={handleSelectIndex}
-                disabled={loading}
-              />
+              <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+                <Box sx={{ flex: 1 }}>
+                  <IndexSelector
+                    indices={indices}
+                    selectedIndex={selectedIndex}
+                    onSelectIndex={handleSelectIndex}
+                    disabled={loading}
+                  />
+                </Box>
+                <Box sx={{ minWidth: 200 }}>
+                  <FormControl fullWidth>
+                    <InputLabel>Return Period</InputLabel>
+                    <Select
+                      value={forwardPeriod || 'current'}
+                      onChange={(e) => handleForwardPeriodChange(e.target.value === 'current' ? null : e.target.value)}
+                      label="Return Period"
+                      disabled={loading}
+                    >
+                      <MenuItem value="current">Current (MoM)</MenuItem>
+                      <MenuItem value="1M">1 Month Forward</MenuItem>
+                      <MenuItem value="3M">3 Months Forward</MenuItem>
+                      <MenuItem value="6M">6 Months Forward</MenuItem>
+                      <MenuItem value="1Y">1 Year Forward</MenuItem>
+                      <MenuItem value="2Y">2 Years Forward</MenuItem>
+                      <MenuItem value="3Y">3 Years Forward</MenuItem>
+                      <MenuItem value="4Y">4 Years Forward</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Box>
+              </Box>
 
               {/* Heatmap Display */}
               {loading && <LoadingSpinner message="Generating heatmap..." />}

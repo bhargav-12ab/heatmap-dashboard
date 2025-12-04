@@ -84,13 +84,15 @@ async def get_indices():
 
 
 @app.get("/heatmap/{index_name}", response_model=HeatmapResponse)
-async def get_heatmap(index_name: str):
+async def get_heatmap(index_name: str, forward_period: str = None):
     """
     Get heatmap data for a specific index.
-    Calculates monthly averages and month-over-month returns.
+    Calculates monthly averages and month-over-month returns or forward returns.
     
     Args:
         index_name: Name of the index (must match column name in CSV)
+        forward_period: Optional forward period ('1M', '3M', '6M', '1Y', '2Y', '3Y', '4Y')
+                       If provided, shows forward returns instead of MoM returns
         
     Returns:
         HeatmapResponse: Heatmap matrix with year -> month -> return value
@@ -108,9 +110,15 @@ async def get_heatmap(index_name: str):
         
         # Generate heatmap and all metrics
         service = HeatmapService(data)
-        heatmap_data = service.generate_heatmap_matrix(index_name)
+        
+        # If forward_period is specified, use forward returns; otherwise use MoM returns
+        if forward_period:
+            heatmap_data = service.calculate_forward_returns(index_name, forward_period)
+        else:
+            heatmap_data = service.generate_heatmap_matrix(index_name)
+        
         monthly_price = service.generate_monthly_price_matrix(index_name)
-        monthly_profits = heatmap_data  # Monthly profits is the same as MoM returns
+        monthly_profits = service.generate_heatmap_matrix(index_name)  # Always MoM returns for this metric
         avg_monthly_profits_3y = service.calculate_avg_monthly_profits_3y(index_name)
         rank_percentile_4y = service.calculate_rank_percentile_4y(index_name)
         inverse_rank_percentile = service.calculate_inverse_rank_percentile(index_name)
