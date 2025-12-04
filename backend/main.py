@@ -35,15 +35,22 @@ app.add_middleware(
 CSV_PATH = Path(__file__).parent.parent / "Latest_Indices_rawdata_14112025.csv"
 csv_loader = CSVLoader(str(CSV_PATH))
 
+# Global cached service instance
+cached_service = None
+
 
 @app.on_event("startup")
 async def startup_event():
     """
-    Load CSV data on startup to validate file existence.
+    Load CSV data on startup to validate file existence and cache it.
     """
+    global cached_service
     try:
-        csv_loader.load_data()
-        print("✓ CSV data loaded successfully")
+        data = csv_loader.load_data()
+        print(f"✓ CSV data loaded successfully ({len(data)} rows)")
+        # Pre-initialize service with cached data
+        cached_service = HeatmapService(data)
+        print("✓ Heatmap service initialized")
     except FileNotFoundError as e:
         print(f"✗ Error: {e}")
         print(f"  Expected CSV at: {CSV_PATH}")
@@ -98,9 +105,6 @@ async def get_heatmap(index_name: str, forward_period: str = None):
         HeatmapResponse: Heatmap matrix with year -> month -> return value
     """
     try:
-        # Load data
-        data = csv_loader.load_data()
-        
         # Validate index exists
         if index_name not in csv_loader.get_index_columns():
             raise HTTPException(
@@ -108,8 +112,8 @@ async def get_heatmap(index_name: str, forward_period: str = None):
                 detail=f"Index '{index_name}' not found. Use /indices to see available indices."
             )
         
-        # Generate heatmap and all metrics
-        service = HeatmapService(data)
+        # Use cached service instead of creating new one
+        service = cached_service
         
         # If forward_period is specified, use forward returns; otherwise use MoM returns
         if forward_period:

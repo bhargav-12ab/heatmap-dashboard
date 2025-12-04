@@ -4,6 +4,7 @@ Service layer for heatmap calculations and data processing.
 import pandas as pd
 import numpy as np
 from typing import Dict, Optional
+from functools import lru_cache
 
 
 class HeatmapService:
@@ -22,6 +23,12 @@ class HeatmapService:
             data: DataFrame containing DATE and index columns
         """
         self.data = data
+        # Cache for computed results
+        self._cache = {}
+    
+    def _get_cache_key(self, index_name: str, operation: str, *args) -> str:
+        """Generate cache key for memoization."""
+        return f"{index_name}:{operation}:{':'.join(map(str, args))}"
     
     def calculate_monthly_average(self, index_name: str) -> pd.Series:
         """
@@ -33,6 +40,11 @@ class HeatmapService:
         Returns:
             Series with monthly average values, indexed by (year, month)
         """
+        # Check cache
+        cache_key = self._get_cache_key(index_name, 'monthly_avg')
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+        
         # Create a copy with only DATE and the selected index
         df = self.data[['DATE', index_name]].copy()
         
@@ -42,6 +54,9 @@ class HeatmapService:
         
         # Calculate monthly average
         monthly_avg = df.groupby(['Year', 'Month'])[index_name].mean()
+        
+        # Cache result
+        self._cache[cache_key] = monthly_avg
         
         return monthly_avg
     
